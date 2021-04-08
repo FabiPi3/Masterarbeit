@@ -40,7 +40,7 @@ def computePPDF(struct,binSize=0.3,numBins=20, projectedAxis=None):
     # Compute a histogram of values in dist, but sorted according to the Z-numbers (in reverse order).
     sym = struct.get_chemical_symbols()
     Natom = len(sym)  # number of atoms = number of symbols
-    uSym,uZ = extractUniqueSymbols(struct)
+    uSym,uZ = extractUniqueSymbols(struct, Z_out=True)
     index = np.zeros((Natom,))
     for j in range(Natom):
         index[j] = uSym.index(sym[j])
@@ -86,7 +86,7 @@ def computePPDF(struct,binSize=0.3,numBins=20, projectedAxis=None):
 def compute2DPDF(struct,binSize=0.3,numBins=20,projectedAxis=None):
     hist, distBins = computePPDF(struct,binSize=binSize,numBins=numBins,projectedAxis=projectedAxis)
     #distBins = 0.5*(histEdges[1:]+histEdges[0:-1])
-    uSym,uZ = extractUniqueSymbols(struct)
+    uSym,uZ = extractUniqueSymbols(struct, Z_out=True)
     hist2D = np.zeros((numBins,))
     index = 0
     for i1 in range(len(uZ)):
@@ -100,7 +100,10 @@ def computeRDF(struct,binSize=0.3,numBins=20):
     hist, distBins = computePPDF(struct,binSize,numBins)
     rho = density(struct)
     dr = distBins[1]-distBins[0]
-    rhist = [hist[i]/(rho*4*np.pi*distBins[i]**2*dr) for i in np.arange(len(distBins))]
+    rhist=np.zeros(np.shape(hist))
+    for i in np.arange(len(distBins)):
+        rhist[i]=hist[i]/(rho*4*np.pi*distBins[i]**2*dr)
+    #rhist2 = [hist[i]/(rho*4*np.pi*distBins[i]**2*dr) for i in np.arange(len(distBins))]
     return rhist, distBins
 
 def simpleRDF(struct,numBins=100,rCut=10):

@@ -37,7 +37,7 @@ import scipy.ndimage as scnd
 import scipy.ndimage.filters as filters
 
 
-def rand_pos(atoms_in, seed=None): # function to randomize atom positions. New positions will be inside Unit cell.
+def rand_pos(atoms_in, seed=None): # function to randomize atom positions. New positions will be inside Unit cell
     atoms = atoms_in.copy()
     pos = atoms.get_positions()
     shape = pos.shape
@@ -79,23 +79,27 @@ def gen_struct(Natoms, elements, ratios=None, dens=0.06, length=None, seed=None,
         struct.set_pbc(True)
     return struct
     
-def showPlot(x_data, y_data=None, hist=False, bins=25, title=None, xlabel=None, ylabel=None, save=None, fontSize=35):
-    '''
-    function to generate a nice plot. Most important is the adaption of the font Size because
-    only than you have the right size in the resulting latex document :)
-    '''
-    fig = p.figure(figsize=(64, 48))
+def showPlot(x_data, y_data=None, hist=False, bins=25, title=None, xlabel=None, ylabel=None, save=None, fontSize=33, angles=1, leg=None):
+    p.rcParams['axes.linewidth'] = 3
+    p.ticklabel_format(axis='y',style='scientific', scilimits=(-3,3))
     p.rcParams.update({'font.size': fontSize})
+    fig, ax = p.subplots(figsize=(30, 15))
+    ax.tick_params(which='both', length=7, width=3)
     if hist:
         p.hist(x_data, bins=bins)
+        #p.hist(x_data, bins=bins,range=(0,182), align='left')
+        if angles==1:
+            p.xticks(ticks=np.arange(0, 190, 10), labels=(0,'','',30,'','',60,'','',90,'','',120,'','',150,'','',180))
     else:
-        p.plot(x_data, y_data)
+        p.plot(x_data, y_data, linewidth=3)
     if title is not None:
         p.title(title)
     if xlabel is not None:
         p.xlabel(xlabel)
     if ylabel is not None:
         p.ylabel(ylabel)
+    if leg is not None:
+        p.legend(leg, fontsize=30, loc=2)
     if save is not None:
         name = save + '.pdf'
         p.savefig(name)
@@ -103,42 +107,47 @@ def showPlot(x_data, y_data=None, hist=False, bins=25, title=None, xlabel=None, 
     else:
         p.show()
 
-def angledistr(atoms, N=5):
+def angledistr(atoms, N=5, alle=True, lab=None, clus=None):
     '''
-    function to calculate the angle distribution of given structure atoms up to N nearest neighbours
+    function to calculate the angle distribution of given structure atoms up to N nearest neighbours;
+    if all is True, uses all atoms, if not, uses only atoms from one cluster: given by cluster; labels given by lab; lab must have same length as number of atoms in atoms
     '''
     Natoms = len(atoms)
+    if not alle:
+        assert np.shape(lab)[0]==Natoms, "Labels and atom numbers are not fitting."
+    else:
+        lab=np.zeros(Natoms)
+        clus=0
     #N=5 #number of neighbours used
     anz = int(N*(N-1)/2) #number of angles that have to be calculated
     a = atoms.get_all_distances(mic=True) #matrix with all distances
     posis = atoms.get_positions()
-    angles = np.zeros((Natoms,anz))
+    angles = np.zeros((Natoms*anz))
+    count = 0 #just an index
     for m in range(int(Natoms)): #for every atom
-        count = 0 #just an index
-        temp = a[m,:] #first line
-        pos1 = posis[m, :]
-        ind = np.argsort(temp)[1:N+1]
-        for i in range(N): #for every neighbour
-            for j in range(4-i): # with the other neighbours
-                #calculate bonding angle
-                k=i+j+1
-                pos2 = posis[ind[i], :]
-                pos3 = posis[ind[k], :]
-                difpos1 = pos2 - pos1
-                difpos2 = pos3 - pos1
-                norm = np.linalg.norm(difpos1)*np.linalg.norm(difpos2)
-                keks = np.dot(difpos1, difpos2)/norm
-                angle = np.arccos(np.around(keks, decimals=5))*180/np.pi
-                angles[m,count]=angle #save the angle
-                count += 1
-    return angles.flatten()
+        if lab[m]==clus:
+            temp = a[m,:] #m'th line
+            pos1 = posis[m, :]
+            ind = np.argsort(temp)[1:N+1]
+            for i in range(N): #for every neighbour
+                for j in range(4-i): # with the other neighbours
+                    #calculate bonding angle
+                    k=i+j+1
+                    pos2 = posis[ind[i], :]
+                    pos3 = posis[ind[k], :]
+                    difpos1 = pos2 - pos1
+                    difpos2 = pos3 - pos1
+                    norm = np.linalg.norm(difpos1)*np.linalg.norm(difpos2)
+                    keks = np.dot(difpos1, difpos2)/norm
+                    angle = np.arccos(np.around(keks, decimals=5))*180/np.pi
+                    angles[count]=angle #save the angle
+                    count += 1
+    anglesshort=angles[0:count] # to skip zeros if not used all atoms
+    return anglesshort.flatten()
     
 def electrondiffraction(atoms, angle1=0, angle2=0, slices=10, sample=400, alpha=1.5, reso=None, dis=False):
     '''
-    This function calculates for a given atom structure the diffraction pattern in CBED mode. The structure can be rotated 
-    before with angle1 around the x axis and angle2 around the y axis. For siumlation PyQSTEM is used with the multislice 
-    algorithm. As further input parameters the number of slices, the number of pixels, the resolution in Angstrom and the 
-    convergence angle alpha in mrad can be specified. The waves can be displayed.
+    This function calculates for a given atom structure the diffraction pattern in CBED mode. The structure can be rotated before with angle1 around the x axis and angle2 around the y axis. For siumlation PyQSTEM is used with the multislice algorithm. As further input parameters the number of slices, the number of pixels, the resolution in Angstrom and the convergence angle alpha in mrad can be specified. The waves can be displayed.
     '''
     length = atoms.get_cell()
     a = length.lengths()[0] #lenght of super cell
@@ -226,6 +235,7 @@ def correlo(atoms, dis=False, it=3, rCut=6, alpha=1.5, slices=10, winkel1=45, wi
     if dis:
         fig = p.figure(figsize=(64, 48))
         p.imshow((np.log10(1+dp[0,int(sample/3):int(2*sample/3),int(sample/3):int(2*sample/3)])),cmap='gray',interpolation='bilinear',vmin = 0)
+        p.colorbar() #Keks
         p.show()
 
     #corellographs calculation
@@ -343,8 +353,7 @@ def svd_norm2(pos, s0=0, s1=1, dis=False, full_out=False):
     
 def soapkmeans(pos, use_cc=False, n_clusters=4, dis=False):
     '''
-    This function calculates the error function for the optimization, but only based on the SOAP output including a KMeans 
-    analysis. You can specify whether to use given cluster centers or not and whether the result should be displayed or not.
+    This function calculates the error function for the optimization, but only based on the SOAP output including a KMeans analysis. You can specify whether the result should be displayed or not.
     '''
     species = ['Cu']
     Natom = 150
@@ -361,7 +370,8 @@ def soapkmeans(pos, use_cc=False, n_clusters=4, dis=False):
 
     soap = SOAP(species=species, periodic=True, rcut=rCut, nmax=NradBas, lmax=Lmax)
     soap = soap.create(atoms_obj)
-    
+    #s = svd(soap, full_matrices=False, compute_uv=False)
+    #l1 = norm(s,ord=1)/norm(s,ord=2)
     if use_cc:
         cc = np.load('cc.npy')
         soapkmeans = KMeans(n_clusters=n_clusters,init=cc, n_init=1).fit(soap)
